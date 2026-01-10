@@ -2,19 +2,15 @@ import streamlit as st
 import tensorflow as tf
 import pickle
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-model = tf.keras.models.load_model(
-    os.path.join(BASE_DIR, "spam_model.h5")
-)
 
 with open(os.path.join(BASE_DIR, "tokenizer.pkl"), "rb") as f:
     tokenizer = pickle.load(f)
 
 # Load model
-model = tf.keras.models.load_model("spam_model.h5")
+model = tf.keras.models.load_model(
+    os.path.join(BASE_DIR, "spam_model.keras")
+)
 
 # Load tokenizer
 with open("tokenizer.pkl", "rb") as f:
@@ -42,5 +38,6 @@ if st.button("Predict"):
             st.error("🚨 SPAM")
         else:
             st.success("✅ HAM")
+
 
 
