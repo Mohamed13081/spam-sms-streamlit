@@ -5,216 +5,168 @@ import numpy as np
 import os
 from tensorflow import keras
 
-# Seiteneinrichtung - sauber und einfach
+# Seiteneinrichtung
 st.set_page_config(
     page_title="Spam-SMS-Erkenner",
     page_icon="📱",
-    layout="centered",
-    initial_sidebar_state="collapsed"  # Sidebar automatisch geschlossen
+    layout="centered"
 )
 
-# Sidebar komplett ausblenden
-st.markdown("""
-<style>
-    [data-testid="stSidebar"] {
-        display: none;
-    }
-    .stButton > button {
-        width: 100%;
-    }
-    .stTextArea textarea {
-        font-size: 16px;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Titel und Beschreibung
+st.title("📱 Spam-SMS-Erkenner")
+st.markdown("Ermittelt, ob eine SMS-Nachricht **Spam** oder **ham** (normal) ist.")
+st.markdown("---")
 
-# ========== MODELL UND DATEN LADEN ==========
+# ========== FUNKTIONEN ZUM LADEN DER DATEIEN ==========
 @st.cache_resource
-def load_model():
-    """Lädt das trainierte Modell"""
+def model_laden():
+    """Lädt das trainierte Keras-Modell"""
     try:
+        # Direkter Pfad - funktioniert auf Streamlit Cloud
         model = keras.models.load_model("spam_model.keras")
         return model
     except Exception as e:
-        st.error(f"Fehler beim Laden des Modells")
+        st.error(f"Fehler beim Laden des Modells: {str(e)}")
         return None
 
 @st.cache_resource
-def load_tokenizer():
+def tokenizer_laden():
     """Lädt den Tokenizer"""
     try:
+        # Direkter Pfad - funktioniert auf Streamlit Cloud
         with open("tokenizer.pkl", "rb") as f:
             tokenizer = pickle.load(f)
         return tokenizer
+    except FileNotFoundError:
+        st.error("Datei 'tokenizer.pkl' nicht gefunden!")
+        # Diagnose: Verfügbare Dateien anzeigen
+        st.write("Verfügbare Dateien im aktuellen Verzeichnis:")
+        for datei in os.listdir('.'):
+            st.write(f"- {datei}")
+        return None
     except Exception as e:
-        st.error(f"Fehler beim Laden der Verarbeitungsdatei")
+        st.error(f"Fehler beim Laden des Tokenizers: {str(e)}")
         return None
 
-# ========== HAUPTOBERFLÄCHE ==========
-# Titel
-st.title("📱 Spam-SMS-Erkenner")
-st.markdown("Geben Sie eine SMS-Nachricht ein, um zu prüfen, ob sie **Spam** oder **normal** ist")
-st.markdown("---")
+# ========== LADE DAS MODELL UND DEN TOKENIZER ==========
+with st.spinner("Lade Modell und Tokenizer..."):
+    model = model_laden()
+    tokenizer = tokenizer_laden()
 
-# Modelle laden
-model = load_model()
-tokenizer = load_tokenizer()
-
+# Falls Fehler beim Laden auftreten
 if model is None or tokenizer is None:
-    st.error("Anwendung konnte nicht geladen werden. Bitte Dateien überprüfen.")
+    st.error("Konnte nicht alle erforderlichen Dateien laden. Bitte überprüfen Sie die Dateien.")
     st.stop()
 
-# Nachrichteneingabe
-st.subheader("Nachricht zur Analyse eingeben")
+# Erfolgsmeldung
+st.success("✅ Modell und Tokenizer erfolgreich geladen!")
 
-# Texteingabefeld
-message = st.text_area(
-    "**Geben Sie die SMS-Nachricht hier ein:**",
+# ========== BENUTZEROBERFLÄCHE ==========
+st.subheader("Nachricht analysieren")
+
+# Texteingabe
+nachricht = st.text_area(
+    "Geben Sie eine SMS-Nachricht ein:",
     height=150,
-    placeholder="Beispiel: 'Sie haben einen Preis gewonnen! Klicken Sie hier' oder 'Hallo, treffen wir uns zum Mittagessen?'",
-    label_visibility="visible",
-    key="message_input"
+    placeholder="Beispiel: 'Sie haben einen Preis gewonnen! Klicken Sie hier, um ihn abzuholen.'",
+    help="Geben Sie eine SMS-Nachricht ein, um zu prüfen, ob es sich um Spam handelt."
 )
 
 # Analyse-Button
-col1, col2, col3 = st.columns([1, 3, 1])
+col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
-    analyze_btn = st.button(
-        "🔍 **Nachricht analysieren**",
+    analysieren_button = st.button(
+        "🔍 Nachricht analysieren",
         type="primary",
-        use_container_width=True,
-        key="analyze_button"
+        use_container_width=True
     )
 
-# ========== NACHRICHTENANALYSE ==========
-if analyze_btn:
-    if not message or not message.strip():
-        st.warning("⚠️ Bitte geben Sie zuerst eine Nachricht ein")
+# ========== ANALYSEFUNKTIONALITÄT ==========
+if analysieren_button:
+    if not nachricht.strip():
+        st.warning("⚠️ Bitte geben Sie eine Nachricht ein!")
     else:
         try:
-            # Textverarbeitung
-            sequences = tokenizer.texts_to_sequences([message.strip()])
+            # Vorverarbeitung der Nachricht
+            sequenzen = tokenizer.texts_to_sequences([nachricht])
             
-            if not sequences or len(sequences[0]) == 0:
-                st.error("❌ Nachricht kann nicht analysiert werden (unbekannte Wörter)")
+            if len(sequenzen[0]) == 0:
+                st.error("❌ Nachricht kann nicht analysiert werden (unbekannte Wörter).")
             else:
                 # Vorhersage
-                with st.spinner("Analyse läuft..."):
-                    prediction = model.predict(np.array(sequences), verbose=0)[0][0]
+                with st.spinner("Analysiere Nachricht..."):
+                    vorhersage = model.predict(np.array(sequenzen), verbose=0)[0][0]
                 
                 # Ergebnisse anzeigen
                 st.markdown("---")
-                st.subheader("📊 **Analyseergebnis**")
+                st.subheader("📊 Analyseergebnis")
                 
-                # Ergebnis anzeigen
-                if prediction > 0.5:
-                    # SPAM
-                    st.error(f"## 🚫 **SPAM-NACHRICHT**")
-                    
-                    # Konfidenz anzeigen
-                    col_conf1, col_conf2 = st.columns([2, 1])
-                    with col_conf1:
-                        st.metric("Konfidenzniveau", f"{prediction*100:.1f}%")
-                    with col_conf2:
-                        st.metric("Schwellenwert", "> 50%")
-                    
-                    # Fortschrittsbalken
-                    st.progress(float(prediction))
-                    
-                    # Warnhinweis
-                    st.warning("""
-                    **⚠️ ACHTUNG:** Diese Nachricht weist typische Spam-Merkmale auf:
-                    • Unrealistische Geldangebote oder Gewinne
-                    • Verdächtige Links oder URLs
-                    • Aufforderung zur Preisgabe persönlicher Daten
-                    • Drängender oder eiliger Ton
-                    • Rechtschreib- oder Grammatikfehler
-                    """)
-                    
-                else:
-                    # HAM (normale Nachricht)
-                    st.success(f"## ✅ **NORMALE NACHRICHT**")
-                    
-                    # Konfidenz anzeigen
-                    col_conf1, col_conf2 = st.columns([2, 1])
-                    with col_conf1:
-                        st.metric("Konfidenzniveau", f"{(1-prediction)*100:.1f}%")
-                    with col_conf2:
-                        st.metric("Schwellenwert", "< 50%")
-                    
-                    # Fortschrittsbalken
-                    st.progress(float(1 - prediction))
-                    
-                    # Bestätigungshinweis
-                    st.info("""
-                    **✓ SICHER:** Diese Nachricht scheint legitim zu sein:
-                    • Persönliche oder geschäftliche Kommunikation
-                    • Realistischer und logischer Inhalt
-                    • Keine verdächtigen Links
-                    • Keine Aufforderung zu sensiblen Daten
-                    • Natürlicher Sprachfluss
-                    """)
+                # Spalten für die Anzeige
+                ergebnis_col, konfidenz_col = st.columns(2)
                 
-                # Detaillierte Informationen (optional)
-                with st.expander("🔍 Technische Details anzeigen"):
-                    st.write(f"**Vorhersagewert:** {prediction:.4f}")
-                    st.write(f"**Entscheidungsschwelle:** 0.5")
-                    st.write(f"**Anzahl erkannte Wörter:** {len(sequences[0])}")
+                with ergebnis_col:
+                    if vorhersage > 0.5:
+                        st.error(f"**🚫 SPAM**")
+                        st.markdown("Diese Nachricht ist wahrscheinlich Spam.")
+                    else:
+                        st.success(f"**✅ HAM (Normal)**")
+                        st.markdown("Diese Nachricht ist wahrscheinlich legitim.")
+                
+                with konfidenz_col:
+                    if vorhersage > 0.5:
+                        konfidenz = vorhersage * 100
+                    else:
+                        konfidenz = (1 - vorhersage) * 100
                     
-                    # Wahrscheinlichkeitsverteilung
-                    st.write("**Wahrscheinlichkeiten:**")
-                    prob_col1, prob_col2 = st.columns(2)
-                    with prob_col1:
-                        st.metric("Normal (Ham)", f"{(1-prediction)*100:.1f}%")
-                    with prob_col2:
-                        st.metric("Spam", f"{prediction*100:.1f}%")
-                        
+                    st.metric(
+                        label="Konfidenzniveau",
+                        value=f"{konfidenz:.1f}%"
+                    )
+                
+                # Fortschrittsbalken
+                st.progress(float(vorhersage))
+                
+                # Detaillierte Informationen
+                with st.expander("🔍 Details zur Analyse"):
+                    st.write(f"**Rohwert der Vorhersage:** {vorhersage:.4f}")
+                    st.write(f"**Schwellenwert:** 0.5")
+                    st.write(f"**Anzahl der Tokens:** {len(sequenzen[0])}")
+                    
+                    # Wahrscheinlichkeiten anzeigen
+                    col_prob1, col_prob2 = st.columns(2)
+                    with col_prob1:
+                        st.metric("Wahrscheinlichkeit Ham", f"{(1-vorhersage)*100:.1f}%")
+                    with col_prob2:
+                        st.metric("Wahrscheinlichkeit Spam", f"{vorhersage*100:.1f}%")
+        
         except Exception as e:
-            st.error(f"❌ Fehler während der Analyse")
+            st.error(f"❌ Fehler bei der Analyse: {str(e)}")
 
-# ========== OPTIONAL: SCHNELLTEST BUTTONS ==========
-# Nur wenn gewünscht - können entfernt werden
-st.markdown("---")
-st.markdown("### 🧪 Schnelltest mit Beispielen")
 
-test_col1, test_col2 = st.columns(2)
-
-with test_col1:
-    if st.button("Spam Beispiel", use_container_width=True):
-        st.session_state.message_input = "Sie haben 1000€ gewonnen! Klicken Sie hier: http://gewinn.link"
-        st.rerun()
-
-with test_col2:
-    if st.button("Normale Nachricht", use_container_width=True):
-        st.session_state.message_input = "Hallo, wollen wir morgen um 15 Uhr im Café treffen?"
-        st.rerun()
-
-# ========== OPTIONAL: ZUSÄTZLICHE BEISPIELE ==========
-with st.expander("Weitere Testbeispiele anzeigen"):
-    examples = st.columns(2)
     
-    with examples[0]:
-        st.write("**Spam-Beispiele:**")
-        if st.button("Bank-Spam", key="bank_spam"):
-            st.session_state.message_input = "Ihr Bankkonto wurde gesperrt. Verifizieren Sie jetzt: https://bank-verify.net"
-            st.rerun()
-        if st.button("Gewinnspiel", key="gewinn_spam"):
-            st.session_state.message_input = "GRATIS iPhone 15! Sie wurden ausgewählt. Jetzt abholen: win-apple.com"
-            st.rerun()
-    
-    with examples[1]:
-        st.write("**Normale Nachrichten:**")
-        if st.button("Terminerinnerung", key="termin_norm"):
-            st.session_state.message_input = "Erinnerung: Ihr Arzttermin ist morgen um 10:30 Uhr"
-            st.rerun()
-        if st.button("Persönliche Nachricht", key="pers_norm"):
-            st.session_state.message_input = "Kannst du Milch auf dem Heimweg mitbringen? Danke!"
-            st.rerun()
+    # Verfügbarkeit der Dateien überprüfen
+    st.markdown("**📁 Verfügbare Dateien:**")
+    dateien = os.listdir('.')
+    for datei in dateien:
+        st.write(f"- {datei}")
 
-# ========== FUSSNOTE ==========
+
+
+# Füge Nachricht zum Session State hinzu, falls noch nicht vorhanden
+if 'nachricht' not in st.session_state:
+    st.session_state.nachricht = ""
+elif st.session_state.nachricht != "":
+    # Falls eine Testnachricht ausgewählt wurde, in die Textarea einfügen
+    nachricht = st.session_state.nachricht
+
+# Fußzeile
 st.markdown("---")
-st.caption("Entwickelt mit TensorFlow und Streamlit")
+st.caption("Entwickelt mit TensorFlow und Streamlit | 🇩🇪 Deutsche Version")
 
-# Text löschen Button
-if st.button("🗑️ Text löschen", type="secondary"):
-    st.rerun()
+# Debug-Informationen (nur im Entwicklungsmodus)
+if st.sidebar.checkbox("Debug-Modus", False):
+    st.sidebar.subheader("Debug-Informationen")
+    st.sidebar.write(f"TensorFlow-Version: {tf.__version__}")
+    st.sidebar.write(f"Streamlit-Version: {st.__version__}")
+    st.sidebar.write(f"Aktuelles Verzeichnis: {os.getcwd()}")
+    st.sidebar.write("Dateien im Verzeichnis:", os.listdir('.'))
