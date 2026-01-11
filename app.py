@@ -15,7 +15,6 @@ st.set_page_config(
 # ========== CSS ==========
 st.markdown("""
 <style>
-    /* Sidebar ausblenden */
     [data-testid="stSidebar"] {
         display: none;
     }
@@ -95,19 +94,16 @@ if st.button("**🔍 NACHRICHT ANALYSIEREN**", type="primary", use_container_wid
     if not message or not message.strip():
         st.warning("Bitte geben Sie eine Nachricht ein")
     else:
-        # Fortschrittsanzeige
         with st.spinner("Lade Modell..."):
             model, tokenizer, max_len = load_model()
         
         if model is not None and tokenizer is not None:
             with st.spinner("Analysiere Nachricht..."):
-                # Text verarbeiten
                 pad = preprocess_text(message.strip(), tokenizer, max_len)
                 
                 if len(pad[0]) == 0:
                     st.error("❌ Nachricht kann nicht analysiert werden")
                 else:
-                    # Vorhersage
                     prob = model.predict(pad, verbose=0)[0][0]
                     
                     # Ergebnisse anzeigen
@@ -115,7 +111,7 @@ if st.button("**🔍 NACHRICHT ANALYSIEREN**", type="primary", use_container_wid
                     st.markdown("## 📊 Analyseergebnis")
                     
                     if prob > 0.5:
-                        # SPAM - MIT GEFAHR-SYMBOL
+                        # SPAM
                         st.markdown("""
                         <div style='
                             background-color: #FEF2F2; 
@@ -126,14 +122,13 @@ if st.button("**🔍 NACHRICHT ANALYSIEREN**", type="primary", use_container_wid
                         '>
                         """, unsafe_allow_html=True)
                         
-                        # Gefahrensymbol statt Ballons
-                        st.markdown("<h2 style='color: #DC2626; text-align: center;'>🚨⚠️🚨 SPAM ERKANNT 🚨⚠️🚨</h2>", 
+                        st.markdown("<h2 style='color: #DC2626; text-align: center;'>🚨 SPAM ERKANNT 🚨</h2>", 
                                   unsafe_allow_html=True)
                         
-                        # Alarm-Symbol
+                        # Gefahrensymbol
                         st.markdown("""
                         <div style='text-align: center; font-size: 40px; margin: 20px 0;'>
-                            🔴🚫🔥
+                            ⚠️🚫🔥
                         </div>
                         """, unsafe_allow_html=True)
                         
@@ -144,24 +139,16 @@ if st.button("**🔍 NACHRICHT ANALYSIEREN**", type="primary", use_container_wid
                         with col2:
                             st.metric("Vorhersagewert", f"{prob:.3f}")
                         
-                        # Fortschrittsbalken (rot)
                         st.progress(float(prob))
                         
-                        # Warnhinweis
                         st.error("""
                         **⚠️ WARNUNG: SPAM-NACHRICHT ERKANNT!**
-                        
-                        Diese Nachricht enthält typische Spam-Merkmale.
-                        Vorsicht bei:
-                        - Verdächtigen Links
-                        - Unrealistischen Angeboten
-                        - Aufforderungen zu persönlichen Daten
                         """)
                         
                         st.markdown("</div>", unsafe_allow_html=True)
                         
                     else:
-                        # HAM - MIT BALLONS NUR HIER
+                        # HAM
                         st.markdown("""
                         <div style='
                             background-color: #F0FDF4; 
@@ -175,7 +162,7 @@ if st.button("**🔍 NACHRICHT ANALYSIEREN**", type="primary", use_container_wid
                         st.markdown("<h2 style='color: #16A34A; text-align: center;'>✅ KEIN SPAM</h2>", 
                                   unsafe_allow_html=True)
                         
-                        # Balloons NUR für HAM
+                        # Balloons nur für HAM
                         st.balloons()
                         
                         # Metriken
@@ -185,27 +172,13 @@ if st.button("**🔍 NACHRICHT ANALYSIEREN**", type="primary", use_container_wid
                         with col2:
                             st.metric("Vorhersagewert", f"{prob:.3f}")
                         
-                        # Fortschrittsbalken (grün)
                         st.progress(float(1 - prob))
                         
-                        # Erfolgsmeldung
                         st.success("""
                         **✓ SICHER: Normale Nachricht**
-                        
-                        Diese Nachricht scheint legitim zu sein.
-                        Typische Merkmale normaler Kommunikation.
                         """)
                         
                         st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    # Technische Details (ausklappbar)
-                    with st.expander("🔍 Technische Details"):
-                        st.write(f"**Textlänge:** {len(message.strip().split())} Wörter")
-                        st.write(f"**Rohwert:** {prob:.4f}")
-                        st.write(f"**Entscheidungsschwelle:** 0.5")
-                    
-                    # Erfolgsmeldung ohne Footer
-                    st.success("✅ Analyse erfolgreich abgeschlossen!")
         
         else:
             st.error("Modell konnte nicht geladen werden")
